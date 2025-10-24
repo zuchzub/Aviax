@@ -1,13 +1,18 @@
 import sys
-if sys.platform != "win32":
-    import uvloop
-    uvloop.install()
-
+import asyncio
 from pyrogram import Client, errors
 from pyrogram.enums import ChatMemberStatus, ParseMode
 
 import config
 from ..logging import LOGGER
+
+
+# ───────────────────────────────────────────────
+# ⚙️ Event loop policy (uvloop sadece Linux'ta)
+# ───────────────────────────────────────────────
+if sys.platform != "win32":
+    import uvloop
+    asyncio.set_event_loop_policy(uvloop.EventLoopPolicy())
 
 
 class Aviax(Client):
@@ -25,34 +30,52 @@ class Aviax(Client):
 
     async def start(self):
         await super().start()
-        self.id = self.me.id
-        self.name = self.me.first_name
-        self.username = self.me.username
-        self.mention = self.me.mention
+
+        me = await self.get_me()
+        self.id = me.id
+        self.name = me.first_name
+        self.username = me.username
+        self.mention = me.mention
 
         try:
-            await self.send_message(
+            video_path = "https://files.catbox.moe/lj5yon.mp4"
+
+            await self.send_video(
                 chat_id=config.LOG_GROUP_ID,
-                text=f"<u><b>» {self.mention} ʙᴏᴛ sᴛᴀʀᴛᴇᴅ :</b><u>\n\nɪᴅ : <code>{self.id}</code>\nɴᴀᴍᴇ : {self.name}\nᴜsᴇʀɴᴀᴍᴇ : @{self.username}",
+                video=video_path,
+                caption=(
+                    f"<u><b>» {self.mention} ʙᴏᴛ ʙᴀşʟᴀᴅı :</b></u>\n\n"
+                    f"🆔 ID : <code>{self.id}</code>\n"
+                    f"👤 İsim : {self.name}\n"
+                    f"🔗 Kullanıcı adı : @{self.username}"
+                ),
+                supports_streaming=True,
             )
+
         except (errors.ChannelInvalid, errors.PeerIdInvalid):
             LOGGER(__name__).error(
-                "Bot has failed to access the log group/channel. Make sure that you have added your bot to your log group/channel."
+                "Log grubuna erişim başarısız. Botu log grubuna eklediğinizden emin olun."
             )
             exit()
+
+        except FileNotFoundError:
+            LOGGER(__name__).warning("start.mp4 dosyası bulunamadı, video gönderilemedi.")
+
         except Exception as ex:
             LOGGER(__name__).error(
-                f"Bot has failed to access the log group/channel.\n  Reason : {type(ex).__name__}."
+                f"Log grubuna erişim sırasında hata: {type(ex).__name__}."
             )
             exit()
 
         a = await self.get_chat_member(config.LOG_GROUP_ID, self.id)
         if a.status != ChatMemberStatus.ADMINISTRATOR:
             LOGGER(__name__).error(
-                "Please promote your bot as an admin in your log group/channel."
+                "Lütfen log grubunuzda bota yönetici yetkisi verin."
             )
             exit()
+
         LOGGER(__name__).info(f"Music Bot Started as {self.name}")
 
     async def stop(self):
+        LOGGER(__name__).info("Stopping Music Bot...")
         await super().stop()
